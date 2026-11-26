@@ -57,13 +57,14 @@ func (c *Client) Playlist(ctx context.Context, raw, page string) (PublicPlaylist
 			for _, p := range List(row, "metadataParts") {
 				t := Str(p, "text", "content")
 				switch {
-				case strings.Contains(strings.ToLower(t), "video"):
+				case mentionsVideos(t):
 					out.Playlist.StreamCount = Digits(t)
-				case out.Playlist.UploaderName == "" && !strings.Contains(strings.ToLower(t), "view") && Str(p, "avatarStack", "avatarStackViewModel", "text", "content") == "":
-					out.Playlist.UploaderName = strings.TrimPrefix(t, "by ")
+				case out.Playlist.UploaderName == "" && !mentionsViews(t) && !mentionsPlaylist(t) &&
+					Str(p, "avatarStack", "avatarStackViewModel", "text", "content") == "":
+					out.Playlist.UploaderName = playlistOwner(t)
 				}
 				if n := Str(p, "avatarStack", "avatarStackViewModel", "text", "content"); n != "" {
-					out.Playlist.UploaderName = strings.TrimPrefix(n, "by ")
+					out.Playlist.UploaderName = playlistOwner(n)
 				}
 			}
 		}
@@ -117,7 +118,7 @@ func (c *Client) Playlist(ctx context.Context, raw, page string) (PublicPlaylist
 		}
 		for _, run := range List(p, "videoInfo", "runs") {
 			t := Str(run, "text")
-			if strings.Contains(t, "view") {
+			if mentionsViews(t) {
 				if n, ok := MixedNumber(t); ok {
 					v.ViewCount = n
 				}

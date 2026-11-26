@@ -175,6 +175,21 @@ func scanVisitor(r io.Reader) string {
 
 var ErrStatus = errors.New("innertube status")
 
+// contentLanguage is the interface language of the metadata requests. YouTube machine-translates video titles into
+// the language a request names, and it has no translations into Zulu, so "zu" keeps every title, description and
+// chapter as the uploader wrote it, as PipePipe's YoutubeService does. The texts YouTube writes itself come back in
+// Zulu then ("ezinsukwini ezingu-2 ezedlule", "434,773 ukubukwa"); the parsers read both languages.
+var contentLanguage = "zu"
+
+// requestLanguage keeps the player on English: it does not translate titles, and the playability reasons
+// CheckPlayability reads are English.
+func requestLanguage(endpoint string) string {
+	if endpoint == "player" {
+		return "en"
+	}
+	return contentLanguage
+}
+
 // Call posts to /youtubei/v1/{endpoint} as the given client and decodes the answer without its tracking members.
 func (c *Client) Call(ctx context.Context, ci ClientInfo, endpoint string, body map[string]any) (map[string]any, error) {
 	return c.call(ctx, ci, endpoint, body, trackingSkip)
@@ -183,7 +198,7 @@ func (c *Client) Call(ctx context.Context, ci ClientInfo, endpoint string, body 
 // call is Call; members named in skip are left out of the decoded answer at any depth.
 func (c *Client) call(ctx context.Context, ci ClientInfo, endpoint string, body map[string]any, skip map[string]bool) (map[string]any, error) {
 	visitor := c.Visitor(ctx)
-	client := map[string]any{"clientName": ci.Name, "clientVersion": ci.Version, "hl": "en", "gl": "US"}
+	client := map[string]any{"clientName": ci.Name, "clientVersion": ci.Version, "hl": requestLanguage(endpoint), "gl": "US"}
 	if visitor != "" {
 		client["visitorData"] = visitor
 	}

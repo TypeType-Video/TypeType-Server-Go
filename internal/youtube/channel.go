@@ -188,7 +188,7 @@ func parseChannelHeader(ch *Channel, res map[string]any) {
 		for _, row := range List(h, "metadata", "contentMetadataViewModel", "metadataRows") {
 			for _, p := range List(row, "metadataParts") {
 				t := Str(p, "text", "content")
-				if strings.Contains(strings.ToLower(t), "subscriber") {
+				if mentionsSubscribers(t) {
 					if n, ok := MixedNumber(t); ok {
 						ch.SubscriberCount = n
 					}

@@ -133,30 +133,14 @@ func MixedNumber(s string) (int64, bool) {
 
 var timeAgo = regexp.MustCompile(`(?i)(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago`)
 
-// TimeAgo turns "3 years ago" (and "Streamed 2 days ago") into a time, as the English TimeAgoParser does.
+// TimeAgo turns "3 years ago" (and "Streamed 2 days ago") into a time, as the English TimeAgoParser does, and the
+// Zulu forms the metadata requests get ("ezinsukwini ezingu-2 ezedlule").
 func TimeAgo(s string, now time.Time) (time.Time, bool) {
-	m := timeAgo.FindStringSubmatch(s)
-	if m == nil {
+	unit, n, ok := timeAgoUnit(s)
+	if !ok {
 		return time.Time{}, false
 	}
-	n, _ := strconv.Atoi(m[1])
-	switch strings.ToLower(m[2]) {
-	case "second":
-		return now.Add(-time.Duration(n) * time.Second), true
-	case "minute":
-		return now.Add(-time.Duration(n) * time.Minute), true
-	case "hour":
-		return now.Add(-time.Duration(n) * time.Hour), true
-	case "day":
-		return now.AddDate(0, 0, -n).Truncate(time.Hour), true
-	case "week":
-		return now.AddDate(0, 0, -7*n).Truncate(time.Hour), true
-	case "month":
-		return now.AddDate(0, -n, 0).Truncate(time.Hour), true
-	case "year":
-		return now.AddDate(-n, 0, 0).Truncate(time.Hour), true
-	}
-	return time.Time{}, false
+	return agoFrom(now, unit, n)
 }
 
 // ParseDate reads the ISO dates of the microformat: "2024-06-24", "2024-06-24T08:00:00-07:00".

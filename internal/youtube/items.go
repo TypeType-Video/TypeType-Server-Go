@@ -74,8 +74,7 @@ func setDates(it *VideoItem, text string, now time.Time) {
 }
 
 func isViewText(s string) bool {
-	l := strings.ToLower(s)
-	return strings.Contains(l, "view") || strings.Contains(l, "watching")
+	return mentionsViews(s) || mentionsWatching(s)
 }
 
 func liveTypes(it *VideoItem, live bool) {
@@ -127,7 +126,7 @@ func FromLockup(l any, now time.Time) (VideoItem, bool) {
 			switch {
 			case content == "":
 			case isViewText(content) || isViewText(Str(p, "accessibilityLabel")) || Str(p, "leadingIcon", "name") == "PLAY_ARROW_OUTLINED":
-				if strings.Contains(strings.ToLower(content), "no views") {
+				if noViews(content) {
 					it.ViewCount = 0
 				} else if n, ok := MixedNumber(content); ok {
 					it.ViewCount = n
@@ -209,11 +208,11 @@ func FromVideoRenderer(v any, now time.Time) (VideoItem, bool) {
 	if d := Text(Dig(v, "lengthText")); d != "" {
 		it.Duration = durationSeconds(d)
 	} else {
-		live = live || Text(Dig(v, "viewCountText")) != "" && strings.Contains(strings.ToLower(Text(Dig(v, "viewCountText"))), "watching")
+		live = live || mentionsWatching(Text(Dig(v, "viewCountText")))
 	}
 	liveTypes(&it, live)
 	views := Text(Dig(v, "viewCountText"))
-	if strings.Contains(strings.ToLower(views), "no views") {
+	if noViews(views) {
 		it.ViewCount = 0
 	} else if n := Digits(views); n > 0 {
 		it.ViewCount = n

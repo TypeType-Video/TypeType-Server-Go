@@ -130,8 +130,8 @@ func playlistFromLockup(l map[string]any) (PlaylistResult, bool) {
 		for _, part := range List(row, "metadataParts") {
 			t := Str(part, "text", "content")
 			l := strings.ToLower(t)
-			if p.UploaderName == "" && t != "" && !strings.HasPrefix(l, "view ") && !strings.Contains(l, "updated") &&
-				!strings.Contains(l, "video") && !strings.Contains(l, "episode") && !strings.Contains(l, "playlist") {
+			if p.UploaderName == "" && t != "" && !strings.HasPrefix(l, "view ") && !strings.HasPrefix(l, "buka ") &&
+				!strings.Contains(l, "updated") && !mentionsVideos(l) && !strings.Contains(l, "episode") && !mentionsPlaylist(l) {
 				p.UploaderName = t
 			}
 		}
@@ -145,11 +145,11 @@ func channelFromRenderer(c map[string]any) ChannelResult {
 		Description: Text(c["descriptionSnippet"]), SubscriberCount: -1, StreamCount: -1}
 	for _, k := range []string{"videoCountText", "subscriberCountText"} {
 		t := Text(c[k])
-		if strings.Contains(strings.ToLower(t), "subscriber") {
+		if mentionsSubscribers(t) {
 			if n, ok := MixedNumber(t); ok {
 				r.SubscriberCount = n
 			}
-		} else if strings.Contains(strings.ToLower(t), "video") {
+		} else if mentionsVideos(t) {
 			r.StreamCount = Digits(t)
 		}
 	}
