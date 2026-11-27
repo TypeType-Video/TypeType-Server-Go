@@ -49,3 +49,15 @@ func TestDefaultWebAudioIsTheFirstListedStreamOfTheDefaultTrack(t *testing.T) {
 		t.Fatalf("dubbed: got %+v, want the original track at itag 140", got)
 	}
 }
+
+func TestDefaultWebVideoLeavesHDRToHDRDisplays(t *testing.T) {
+	var in sabr.Info
+	if err := json.Unmarshal([]byte(`[
+		{"itag":315,"mimeType":"video/webm; codecs=\"vp9\"","bitrate":26879488,"height":2160,"qualityLabel":"2160p60"},
+		{"itag":337,"mimeType":"video/webm; codecs=\"vp09.02.51.10.01.09.16.09.00\"","bitrate":29319624,"height":2160,"qualityLabel":"2160p60 HDR"}]`), &in.Formats); err != nil {
+		t.Fatal(err)
+	}
+	if got := defaultWebVideo(&in, 2160); got == nil || got.Itag != 315 {
+		t.Fatalf("got %+v, want the SDR 315", got)
+	}
+}

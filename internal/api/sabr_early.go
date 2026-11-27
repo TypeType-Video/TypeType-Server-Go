@@ -15,8 +15,8 @@ import (
 // bootstrap: the player only creates it after loading its code, a few hundred milliseconds later, and finds it
 // prewarmed under the same key. The formats are the ones the web player picks by default (defaultSabrItag and
 // pickSabrAudio): the highest height not above the viewer's default quality, H.264 first, then VP9, then AV1, and
-// the default audio. A guess the player does not confirm costs the initialization segments and a few seconds of
-// media, and the idle sweep releases it.
+// the default audio, never HDR (the web takes it only on an HDR display). A guess the player does not confirm costs
+// the initialization segments and a few seconds of media, and the idle sweep releases it.
 func (s *Server) earlySession(r *http.Request, id string, in *sabr.Info) {
 	if in == nil || in.Live || strings.EqualFold(os.Getenv("SABR_EARLY_SESSION"), "off") {
 		return
@@ -108,7 +108,7 @@ func defaultWebVideo(in *sabr.Info, limit int) *sabr.Format {
 	var best *sabr.Format
 	for i := range in.Formats {
 		f := &in.Formats[i]
-		if !f.IsVideo() || in.SelectVideo(f.Itag) == nil || webCodecRank(f.MimeType) > 2 || tier(f) > limit {
+		if !f.IsVideo() || f.IsHDR() || in.SelectVideo(f.Itag) == nil || webCodecRank(f.MimeType) > 2 || tier(f) > limit {
 			continue
 		}
 		switch {
