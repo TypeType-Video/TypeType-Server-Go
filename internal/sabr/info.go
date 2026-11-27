@@ -38,6 +38,15 @@ type Format struct {
 }
 
 func (f *Format) IsAudio() bool { return strings.HasPrefix(f.MimeType, "audio/") }
+
+// IsHDR tells a high dynamic range format (YouTube labels them "2160p60 HDR").
+func (f *Format) IsHDR() bool { return strings.Contains(f.QualityLabel, "HDR") }
+
+// fullHDRCodec rewrites the short "vp9.2" YouTube gives for HDR VP9 into the codec string browsers accept
+// (profile 2, level 5.1, 10 bits, BT.2020, PQ): MediaSource.isTypeSupported and addSourceBuffer reject "vp9.2".
+func fullHDRCodec(mime string) string {
+	return strings.Replace(mime, `codecs="vp9.2"`, `codecs="vp09.02.51.10.01.09.16.09.00"`, 1)
+}
 func (f *Format) IsVideo() bool { return strings.HasPrefix(f.MimeType, "video/") }
 
 func (f *Format) AudioTrackID() *string {
@@ -157,6 +166,7 @@ func parseSession(videoID string, raw []byte) (*Info, error) {
 	}
 	for i := range in.Formats {
 		in.Formats[i].lmt, _ = strconv.ParseUint(in.Formats[i].LastModified, 10, 64)
+		in.Formats[i].MimeType = fullHDRCodec(in.Formats[i].MimeType)
 	}
 	if in.DurationMs == 0 {
 		for _, f := range in.Formats {
