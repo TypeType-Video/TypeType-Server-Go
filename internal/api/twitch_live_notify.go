@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -105,9 +107,13 @@ VALUES ($1, TRUE, $2, $2) ON CONFLICT (user_id) DO NOTHING`, user, now); err != 
 	if err := s.DB.QueryRow(ctx, "SELECT watching_since FROM twitch_live_notification_settings WHERE user_id = $1", user).Scan(&since); err != nil {
 		return err
 	}
+	muted, err := s.mutedTwitchChannels(ctx, user)
+	if err != nil {
+		return err
+	}
 	for _, st := range page.Items {
 		started := st.StartedAt.UnixMilli()
-		if st.ID == "" || st.User.Login == "" || started <= since {
+		if st.ID == "" || st.User.Login == "" || started <= since || slices.Contains(muted, strings.ToLower(st.User.Login)) {
 			continue
 		}
 		category := ""
@@ -133,7 +139,8 @@ func (s *Server) twitchLiveItems(ctx context.Context, user string) ([]notificati
 	}
 	rows, err := s.DB.Query(ctx, `SELECT l.stream_id, l.channel_login, l.channel_name, l.channel_avatar_url, l.title, l.category,
 l.started_at, l.created_at FROM twitch_live_notifications l JOIN twitch_live_notification_settings n ON n.user_id = l.user_id
-WHERE l.user_id = $1 AND n.enabled AND l.created_at >= $2 ORDER BY l.created_at DESC LIMIT $3`,
+WHERE l.user_id = $1 AND n.enabled AND l.created_at >= $2 AND NOT EXISTS (SELECT 1 FROM twitch_live_channel_preferences p
+WHERE p.user_id = l.user_id AND p.channel_login = lower(l.channel_login) AND NOT p.enabled) ORDER BY l.created_at DESC LIMIT $3`,
 		user, time.Now().Add(-twitchLiveKeep).UnixMilli(), twitchLiveListLimit)
 	if err != nil {
 		return nil, err
@@ -156,6 +163,18 @@ WHERE l.user_id = $1 AND n.enabled AND l.created_at >= $2 ORDER BY l.created_at 
 	return items, rows.Err()
 }
 
+func (s *Server) mutedTwitchChannels(ctx context.Context, user string) ([]string, error) {
+	rows, err := s.DB.Query(ctx, "SELECT channel_login FROM twitch_live_channel_preferences WHERE user_id = $1 AND NOT enabled ORDER BY channel_login", user)
+	if err != nil {
+		return nil, err
+	}
+	muted, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if muted == nil {
+		muted = []string{}
+	}
+	return muted, err
+}
+
 // mergeNewest merges two newest-first lists into a new one; feed items are shared, so neither input is changed.
 func mergeNewest(a, b []notificationItem) []notificationItem {
 	out := make([]notificationItem, 0, len(a)+len(b))
@@ -176,7 +195,38 @@ func (s *Server) twitchLiveNotificationRoutes(rt *Router) {
 	rt.Handle("GET", "/notifications/twitch-live", s.twitchSignedIn(func(w http.ResponseWriter, r *http.Request, user string) {
 		enabled := true
 		s.DB.QueryRow(r.Context(), "SELECT enabled FROM twitch_live_notification_settings WHERE user_id = $1", user).Scan(&enabled)
-		httpx.JSON(w, http.StatusOK, map[string]any{"enabled": enabled})
+		muted, err := s.mutedTwitchChannels(r.Context(), user)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		httpx.JSON(w, http.StatusOK, map[string]any{"enabled": enabled, "mutedChannels": muted})
+	}))
+	rt.Handle("PUT", "/notifications/twitch-live/channels/{login}", s.twitchSignedIn(func(w http.ResponseWriter, r *http.Request, user string) {
+		login, ok := pathOK(w, r, "login", twitchLoginRe)
+		if !ok {
+			return
+		}
+		var req struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if !decode(w, r, &req) {
+			return
+		}
+		if req.Enabled == nil {
+			plain(w, r, http.StatusBadRequest, "Invalid request body")
+			return
+		}
+		login = strings.ToLower(login)
+		_, err := s.DB.Exec(r.Context(), `INSERT INTO twitch_live_channel_preferences (user_id, channel_login, enabled, updated_at)
+VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, channel_login) DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = EXCLUDED.updated_at`,
+			user, login, *req.Enabled, time.Now().UnixMilli())
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		unreadCache.Delete(user)
+		httpx.JSON(w, http.StatusOK, map[string]any{"login": login, "enabled": *req.Enabled})
 	}))
 	rt.Handle("PUT", "/notifications/twitch-live", s.twitchSignedIn(func(w http.ResponseWriter, r *http.Request, user string) {
 		var req struct {

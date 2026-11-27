@@ -25,7 +25,8 @@ func TestMergeNewestKeepsBothListsInOrder(t *testing.T) {
 }
 
 // TestTwitchLiveNotifications needs PostgreSQL (TEST_DATABASE_URL): a stream started after the user began receiving
-// live notifications is recorded once, one already live then is not, and switching them off hides the items.
+// live notifications is recorded once, one already live then is not, a muted channel is skipped, and switching them
+// off hides the items.
 func TestTwitchLiveNotifications(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -56,7 +57,8 @@ func TestTwitchLiveNotifications(t *testing.T) {
 	s := &Server{DB: pool, twitch: newTwitch()}
 	user := "twitch-live-test-" + contentPlaybackNonce()
 	t.Cleanup(func() {
-		for _, table := range []string{"twitch_accounts", "twitch_live_notifications", "twitch_live_notification_settings"} {
+		for _, table := range []string{"twitch_accounts", "twitch_live_notifications", "twitch_live_notification_settings",
+			"twitch_live_channel_preferences"} {
 			pool.Exec(ctx, "DELETE FROM "+table+" WHERE user_id = $1", user)
 		}
 	})
@@ -85,6 +87,32 @@ VALUES ($1, TRUE, $2, $3)`, user, since.UnixMilli(), now); err != nil {
 	if it.Type != twitchLiveType || it.Title != "Speedrun" || it.ChannelName != "Runner" || it.ChannelURL != "https://www.twitch.tv/runner" ||
 		it.ChannelAvatarURL != "https://a/r.png" || it.Live == nil || it.Live.Login != "runner" || it.Live.Category != "Celeste" || it.ID == "" {
 		t.Fatalf("item %+v live %+v", it, it.Live)
+	}
+	mute := func(enabled bool) {
+		if _, err := pool.Exec(ctx, `INSERT INTO twitch_live_channel_preferences (user_id, channel_login, enabled, updated_at)
+VALUES ($1, 'runner', $2, $3) ON CONFLICT (user_id, channel_login) DO UPDATE SET enabled = EXCLUDED.enabled`, user, enabled, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mute(false)
+	if items, _ := s.twitchLiveItems(ctx, user); len(items) != 0 {
+		t.Fatalf("muted channel still listed: %+v", items)
+	}
+	pool.Exec(ctx, "DELETE FROM twitch_live_notifications WHERE user_id = $1", user)
+	if err := s.pollTwitchLiveUser(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	var stored int
+	pool.QueryRow(ctx, "SELECT count(*) FROM twitch_live_notifications WHERE user_id = $1", user).Scan(&stored)
+	if stored != 0 {
+		t.Fatalf("a muted channel's stream was recorded")
+	}
+	mute(true)
+	if err := s.pollTwitchLiveUser(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	if items, _ := s.twitchLiveItems(ctx, user); len(items) != 1 {
+		t.Fatalf("unmuted channel not back: %+v", items)
 	}
 	if _, err := pool.Exec(ctx, "UPDATE twitch_live_notification_settings SET enabled = FALSE WHERE user_id = $1", user); err != nil {
 		t.Fatal(err)

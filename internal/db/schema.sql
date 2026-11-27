@@ -655,3 +655,10 @@ CREATE TABLE IF NOT EXISTS twitch_live_notification_settings (
     updated_at BIGINT NOT NULL,
     CONSTRAINT pk_twitch_live_notification_settings PRIMARY KEY (user_id)
 );
+CREATE TABLE IF NOT EXISTS twitch_live_channel_preferences (
+    user_id TEXT NOT NULL,
+    channel_login TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL,
+    updated_at BIGINT NOT NULL,
+    CONSTRAINT pk_twitch_live_channel_preferences PRIMARY KEY (user_id, channel_login)
+);
