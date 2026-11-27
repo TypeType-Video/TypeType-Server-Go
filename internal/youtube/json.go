@@ -104,9 +104,10 @@ func Digits(s string) int64 {
 	return n
 }
 
-var mixedNumber = regexp.MustCompile(`([\d.,]+)\s*([KkMmBb])?`)
+var mixedNumber = regexp.MustCompile(`([\d.,]+)\s*((?i:inkulungwane|izigidigidi|isigidigidi|izigidi|isigidi)|[KkMmBb])?`)
 
-// MixedNumber reads "1.2M views", "3,4 k" or "12K" like Utils.mixedNumberWordToLong.
+// MixedNumber reads "1.2M views", "3,4 k" or "12K" like Utils.mixedNumberWordToLong, and the Zulu words YouTube
+// spells some multipliers with ("3 inkulungwane ababukele", "2 izigidi ukubukwa").
 func MixedNumber(s string) (int64, bool) {
 	m := mixedNumber.FindStringSubmatch(s)
 	if m == nil {
@@ -121,11 +122,11 @@ func MixedNumber(s string) (int64, bool) {
 		return 0, false
 	}
 	switch strings.ToUpper(m[2]) {
-	case "K":
+	case "K", "INKULUNGWANE":
 		f *= 1e3
-	case "M":
+	case "M", "IZIGIDI", "ISIGIDI":
 		f *= 1e6
-	case "B":
+	case "B", "IZIGIDIGIDI", "ISIGIDIGIDI":
 		f *= 1e9
 	}
 	return int64(f + 0.5), true

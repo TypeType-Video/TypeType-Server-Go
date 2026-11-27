@@ -56,8 +56,20 @@ func TestZuluMetadataWords(t *testing.T) {
 	check("mentionsSubscribers", mentionsSubscribers, []string{"891K ababhalisile", "1.35M subscribers"}, []string{"@papaplatte"})
 	check("mentionsVideos", mentionsVideos, []string{"Amavidiyo angu-182", "395 videos"}, []string{"1M ukubukwa"})
 	check("mentionsPlaylist", mentionsPlaylist, []string{"Uhlu lokudlalayo", "Playlist"}, []string{"Lwith2L"})
-	if n, ok := MixedNumber("891K ababhalisile"); !ok || n != 891000 {
-		t.Errorf("MixedNumber = %d, %v", n, ok)
+	for in, want := range map[string]int64{
+		"891K ababhalisile":         891000,
+		"3 inkulungwane ababukele":  3000,
+		"1.2 inkulungwane ukubukwa": 1200,
+		"2 izigidi ukubukwa":        2000000,
+		"1 isigidi ukubukwa":        1000000,
+		"1.5 izigidigidi ukubukwa":  1500000000,
+		"434,773 ukubukwa":          434773,
+		"1.2M views":                1200000,
+		"12K":                       12000,
+	} {
+		if n, ok := MixedNumber(in); !ok || n != want {
+			t.Errorf("MixedNumber(%q) = %d, %v; want %d", in, n, ok, want)
+		}
 	}
 }
 
