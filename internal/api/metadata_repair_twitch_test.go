@@ -12,7 +12,8 @@ import (
 )
 
 // TestRepairFillsSavedTwitchVideos needs PostgreSQL (TEST_DATABASE_URL): a favourite Twitch VOD saved by URL alone
-// gets its title, cover, length and channel from TypeType-Live, and one Twitch removed keeps what it had.
+// gets its title, cover, length and channel from TypeType-Live, one Twitch removed keeps what it had, and one saved with
+// its metadata is never looked up again, even a day later.
 func TestRepairFillsSavedTwitchVideos(t *testing.T) {
 	dsn := os.Getenv("TEST_DATABASE_URL")
 	if dsn == "" {
@@ -29,8 +30,8 @@ func TestRepairFillsSavedTwitchVideos(t *testing.T) {
 			http.Error(w, `{"error":"not_found"}`, http.StatusNotFound)
 			return
 		}
-		w.Write([]byte(`{"id":"2370123456","title":"Speedrun VOD","previewUrl":"https://p/v.jpg","lengthSeconds":5400,"views":42,
-"owner":{"login":"runner","displayName":"Runner","avatarUrl":"https://a/r.png"},"createdAt":"2026-11-20T18:00:00Z"}`))
+		w.Write([]byte(`{"video":{"id":"2370123456","title":"Speedrun VOD","previewUrl":"https://p/v.jpg","lengthSeconds":5400,"views":42,
+"owner":{"login":"runner","displayName":"Runner","avatarUrl":"https://a/r.png"},"createdAt":"2026-11-20T18:00:00Z"},"hlsUrl":"/x"}`))
 	}))
 	defer live.Close()
 	t.Setenv("TWITCH_SERVICE_URL", live.URL)
@@ -39,7 +40,7 @@ func TestRepairFillsSavedTwitchVideos(t *testing.T) {
 	s := &Server{DB: pool, twitch: newTwitch()}
 	user := "twitch-vod-test-" + contentPlaybackNonce()
 	t.Cleanup(func() { pool.Exec(ctx, "DELETE FROM favorites WHERE user_id = $1", user) })
-	kept, gone := twitchVideoPrefix+"2370123456", twitchVideoPrefix+"1111111111"
+	kept, gone, full := twitchVideoPrefix+"2370123456", twitchVideoPrefix+"1111111111", twitchVideoPrefix+"2222222222"
 	now := time.Now().UnixMilli()
 	for _, u := range []string{kept, gone} {
 		if _, err := pool.Exec(ctx, `INSERT INTO favorites (user_id, video_url, favorited_at, title, thumbnail, duration, channel_name,
@@ -48,6 +49,11 @@ channel_url, channel_avatar, view_count, published_at) VALUES ($1, $2, $3, '', '
 		}
 	}
 	pool.Exec(ctx, "UPDATE favorites SET title = 'Old title' WHERE user_id = $1 AND video_url = $2", user, gone)
+	if _, err := pool.Exec(ctx, `INSERT INTO favorites (user_id, video_url, favorited_at, title, thumbnail, duration, channel_name,
+channel_url, channel_avatar, view_count, published_at) VALUES ($1, $2, $3, 'Saved', 'https://p/s.jpg', 60, 'Runner', 'https://www.twitch.tv/runner', '', 0, -1)`,
+		user, full, now); err != nil {
+		t.Fatal(err)
+	}
 	if n := s.repairBatch(user, savedTable{"favorites", "video_url"}, "", map[string]bool{}); n != 2 {
 		t.Fatalf("looked up %d videos", n)
 	}

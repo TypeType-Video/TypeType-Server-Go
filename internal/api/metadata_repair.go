@@ -77,7 +77,8 @@ func (s *Server) repairBatch(user string, t savedTable, playlist string, exclude
 	defer cancel()
 	now := time.Now().UnixMilli()
 	q := `SELECT ` + t.url + ` FROM ` + t.table + ` WHERE user_id = $1 AND (title LIKE 'YouTube video %' OR thumbnail = '' OR duration <= 0
-OR channel_name = '' OR channel_url = '' OR metadata_refreshed_at < $2 OR channel_avatar = '' AND metadata_refreshed_at < $3)`
+OR channel_name = '' OR channel_url = '' OR metadata_refreshed_at < $2 OR channel_avatar = '' AND metadata_refreshed_at < $3)
+AND (` + t.url + ` NOT LIKE '` + twitchVideoPrefix + `%' OR title = '' OR thumbnail = '' OR duration <= 0 OR channel_name = '')`
 	args := []any{user, now - 24*3600*1000, now - 3600*1000}
 	if playlist != "" {
 		q += " AND playlist_id = $4"
