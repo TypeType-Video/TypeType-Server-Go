@@ -145,8 +145,11 @@ func (c *Client) fillGrid(ch *Channel, items []any) {
 		if !ok {
 			continue
 		}
+		// A video of the channel's own tab carries a byline only when several channels made it, and then only YouTube's
+		// sentence ("A and B", "I-A ne-B" in Zulu) without a link: the channel shown is one of them.
 		if v.UploaderURL == "" && ch.ID != "" {
 			v.UploaderURL = ChannelURL(ch.ID)
+			v.UploaderName = ""
 		}
 		if v.UploaderName == "" {
 			v.UploaderName = ch.Name

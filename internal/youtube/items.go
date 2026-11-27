@@ -168,7 +168,7 @@ func FromLockup(l any, now time.Time) (VideoItem, bool) {
 	return it, it.Title != ""
 }
 
-// firstCollaborator is the lockup uploader of PipePipe for a video several channels made together: the byline is a
+// firstCollaborator is the uploader PipePipe gives a video several channels made together: the byline is a
 // sentence YouTube writes in the request language ("A and B", "I-A ne-B" in Zulu), so the uploader is the first
 // channel of the collaborators dialog.
 func firstCollaborator(it *VideoItem, cmd any) {
@@ -224,6 +224,7 @@ func FromVideoRenderer(v any, now time.Time) (VideoItem, bool) {
 	if it.UploaderAvatarURL == "" {
 		it.UploaderAvatarURL = LastURL(List(v, "channelThumbnail", "thumbnails"))
 	}
+	firstCollaborator(&it, Dig(owner, "runs", 0, "navigationEndpoint"))
 	live := false
 	for _, b := range List(v, "badges") {
 		if strings.Contains(Str(b, "metadataBadgeRenderer", "style"), "LIVE") {
