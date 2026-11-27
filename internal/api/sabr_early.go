@@ -34,7 +34,7 @@ func (s *Server) earlySession(r *http.Request, id string, in *sabr.Info) {
 		cancel()
 	}
 	video := defaultWebVideo(in, limit)
-	audio := in.SelectAudio(0, "")
+	audio := defaultWebAudio(id, in)
 	if video == nil || audio == nil {
 		return
 	}
@@ -61,6 +61,29 @@ func (s *Server) earlySession(r *http.Request, id string, in *sabr.Info) {
 	s.Sabr.Remember(key, ss, start)
 	s.sabrTrace(r, "sabr_early", ss, "outcome", "started", "user", userKind(user), "qualityLimit", limit, "videoItag", vi,
 		"audioItag", ai, "startMs", start)
+}
+
+// defaultWebAudio is pickSabrAudio: the first stream of the preferred default track, in the order the stream lists
+// them, that every browser decodes. The highest bitrate AAC was a guess the player never confirmed (5.1 at 384 kbps
+// against its stereo 128 kbps), so every early session went unused.
+func defaultWebAudio(id string, in *sabr.Info) *sabr.Format {
+	_, streams := sabrStreams(id, in)
+	r := streamResponse{AudioStreams: streams}
+	applyAudioContract(&r)
+	for _, a := range streams {
+		if r.PreferredDefaultAudioTrackID != nil && (a.AudioTrackID == nil || *a.AudioTrackID != *r.PreferredDefaultAudioTrackID) {
+			continue
+		}
+		if a.Codec == nil || !strings.HasPrefix(*a.Codec, "mp4a.") && *a.Codec != "opus" {
+			continue
+		}
+		track := ""
+		if a.AudioTrackID != nil {
+			track = *a.AudioTrackID
+		}
+		return in.SelectAudio(a.Itag, track)
+	}
+	return in.SelectAudio(0, "")
 }
 
 func webCodecRank(mime string) int {
