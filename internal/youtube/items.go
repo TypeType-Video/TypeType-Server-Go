@@ -114,6 +114,7 @@ func FromLockup(l any, now time.Time) (VideoItem, bool) {
 		it.Duration = -1
 	}
 	now = now.UTC()
+	var uploaderCmd any
 	for _, row := range List(meta, "metadata", "contentMetadataViewModel", "metadataRows") {
 		for _, b := range List(row, "badges") {
 			if Str(b, "badgeViewModel", "badgeStyle") == "BADGE_MEMBERS_ONLY" {
@@ -136,7 +137,8 @@ func FromLockup(l any, now time.Time) (VideoItem, bool) {
 			case it.UploaderName == "":
 				it.UploaderName = content
 				if runs := List(txt, "commandRuns"); len(runs) > 0 {
-					it.UploaderURL = endpointURL(Dig(runs[0], "onTap", "innertubeCommand"))
+					uploaderCmd = Dig(runs[0], "onTap", "innertubeCommand")
+					it.UploaderURL = endpointURL(uploaderCmd)
 				}
 				for _, a := range List(txt, "attachmentRuns") {
 					name := Str(a, "element", "type", "imageType", "image", "sources", 0, "clientResource", "imageName")
@@ -155,11 +157,42 @@ func FromLockup(l any, now time.Time) (VideoItem, bool) {
 		}
 	} else if st := Obj(img, "avatarStackViewModel"); st != nil {
 		it.UploaderAvatarURL = FixURL(Str(st, "avatars", 0, "avatarViewModel", "image", "sources", 0, "url"))
+		if uploaderCmd == nil {
+			uploaderCmd = Dig(st, "rendererContext", "commandContext", "onTap", "innertubeCommand")
+		}
 	}
+	firstCollaborator(&it, uploaderCmd)
 	cmd := Obj(l, "rendererContext", "commandContext", "onTap", "innertubeCommand")
 	it.IsShortFormContent = cmd["reelWatchEndpoint"] != nil ||
 		Str(cmd, "commandMetadata", "webCommandMetadata", "webPageType") == "WEB_PAGE_TYPE_SHORTS"
 	return it, it.Title != ""
+}
+
+// firstCollaborator is the lockup uploader of PipePipe for a video several channels made together: the byline is a
+// sentence YouTube writes in the request language ("A and B", "I-A ne-B" in Zulu), so the uploader is the first
+// channel of the collaborators dialog.
+func firstCollaborator(it *VideoItem, cmd any) {
+	ep, _ := cmd.(map[string]any)
+	if Obj(ep, "showDialogCommand") == nil {
+		return
+	}
+	item := Obj(Dig(ep, "showDialogCommand", "panelLoadingStrategy", "inlineContent", "dialogViewModel", "customContent",
+		"listViewModel", "listItems", 0), "listItemViewModel")
+	if name := Str(item, "title", "content"); name != "" {
+		it.UploaderName = name
+	}
+	tap := Dig(item, "title", "commandRuns", 0, "onTap", "innertubeCommand")
+	if tap == nil {
+		tap = Dig(item, "rendererContext", "commandContext", "onTap", "innertubeCommand")
+	}
+	if u := endpointURL(tap); u != "" {
+		it.UploaderURL = u
+	} else if u := LinkURL(ep); u != "" {
+		it.UploaderURL = u
+	}
+	if av := FixURL(Str(item, "leadingAccessory", "avatarViewModel", "image", "sources", 0, "url")); av != "" {
+		it.UploaderAvatarURL = av
+	}
 }
 
 func looksLikeDate(s string, now time.Time) bool {
