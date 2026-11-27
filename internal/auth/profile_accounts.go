@@ -206,7 +206,8 @@ var userTables = []string{"history", "favorites", "progress", "watch_later", "su
 	"user_seekbar_icons", "user_channel_interest", "user_topic_interest", "youtube_sessions", "twitch_accounts", "youtube_session_pairings",
 	"youtube_takeout_import_jobs", "youtube_takeout_playlist_keys", "recommendation_events", "recommendation_feed_history",
 	"recommendation_feedback", "recommendation_onboarding_preferences", "recommendation_onboarding_state", "recommender_user_settings",
-	"focus_settings", "recommender_feedback", "rss_user_policies"}
+	"focus_settings", "recommender_feedback", "rss_user_policies", "twitch_live_notifications",
+	"twitch_live_notification_settings"}
 
 func (p *Profiles) Delete(ctx context.Context, active, profileID string) error {
 	tx, err := p.db.Begin(ctx)

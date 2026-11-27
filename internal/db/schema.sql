@@ -636,3 +636,22 @@ CREATE TABLE IF NOT EXISTS rss_user_policies (
     updated_at BIGINT NOT NULL,
     CONSTRAINT pk_rss_user_policies PRIMARY KEY (user_id)
 );
+CREATE TABLE IF NOT EXISTS twitch_live_notifications (
+    user_id TEXT NOT NULL,
+    stream_id TEXT NOT NULL,
+    channel_login TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    channel_avatar_url TEXT NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    category TEXT NOT NULL DEFAULT '',
+    started_at BIGINT NOT NULL,
+    created_at BIGINT NOT NULL,
+    CONSTRAINT pk_twitch_live_notifications PRIMARY KEY (user_id, stream_id)
+);
+CREATE TABLE IF NOT EXISTS twitch_live_notification_settings (
+    user_id TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    watching_since BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    CONSTRAINT pk_twitch_live_notification_settings PRIMARY KEY (user_id)
+);

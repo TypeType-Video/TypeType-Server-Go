@@ -27,6 +27,7 @@ type notificationItem struct {
 	ServiceName      string            `json:"serviceName"`
 	Read             bool              `json:"read"`
 	Video            youtube.VideoItem `json:"video"`
+	Live             *twitchLiveNotice `json:"live,omitempty"`
 }
 
 var unreadCache sync.Map
@@ -98,6 +99,15 @@ func (s *Server) notifications(r *http.Request, user string) ([]notificationItem
 	}
 	rows.Close()
 	items := snap.notificationItems(enabled)
+	if slices.Contains(r.URL.Query()["include"], twitchLiveType) {
+		live, err := s.twitchLiveItems(ctx, user)
+		if err != nil {
+			return nil, nil, true, err
+		}
+		if len(live) > 0 {
+			items = mergeNewest(items, live)
+		}
+	}
 	read := map[string]bool{}
 	rrows, err := s.DB.Query(ctx, "SELECT notification_id FROM notification_read_items WHERE user_id = $1", user)
 	if err != nil {
