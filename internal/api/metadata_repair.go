@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -17,6 +18,9 @@ func internalLookup(ctx context.Context) bool { v, _ := ctx.Value(noWarmKey{}).(
 // lookupStream is StreamService.getStreamInfo for background work: the public stream response of a URL, and whether
 // a failure is worth retrying (anything but a bad request).
 func (s *Server) lookupStream(ctx context.Context, raw string) (*streamResponse, bool) {
+	if id, ok := strings.CutPrefix(raw, twitchVideoPrefix); ok && twitchIDRe.MatchString(id) {
+		return s.twitchVideoLookup(ctx, id)
+	}
 	r, _ := http.NewRequestWithContext(context.WithValue(ctx, noWarmKey{}, true), "GET", "/streams?url="+url.QueryEscape(raw), nil)
 	resp, c := s.streamFor(r, raw)
 	if resp != nil {
